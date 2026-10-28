@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — MoMo Shield</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-card" style="width:460px;">
+    <div class="auth-logo">
+      <div class="logo-mark" style="width:44px;height:44px;font-size:20px;">M</div>
+      <div style="margin-top:10px;">
+        <div style="font-size:18px;font-weight:700;color:#e8f0fb;">Create Account</div>
+        <div style="font-size:10px;color:#4a6080;letter-spacing:1.5px;text-transform:uppercase;">MoMo Shield</div>
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+
+        <div class="form-group">
+          <label>First Name</label>
+          <input type="text" name="first_name" class="form-control" placeholder="First name"
+                 value="{{ form.first_name.value|default:'' }}">
+          {% for e in form.first_name.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="form-group">
+          <label>Last Name</label>
+          <input type="text" name="last_name" class="form-control" placeholder="Last name"
+                 value="{{ form.last_name.value|default:'' }}">
+          {% for e in form.last_name.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" class="form-control" placeholder="Username"
+                 value="{{ form.username.value|default:'' }}">
+          {% for e in form.username.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" name="email" class="form-control" placeholder="Email"
+                 value="{{ form.email.value|default:'' }}">
+          {% for e in form.email.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="form-group">
+          <label>Organisation</label>
+          <input type="text" name="organisation" class="form-control" placeholder="Organisation"
+                 value="{{ form.organisation.value|default:'' }}">
+        </div>
+
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" name="phone" class="form-control" placeholder="07XX XXX XXX"
+                 value="{{ form.phone.value|default:'' }}">
+        </div>
+
+        <div class="form-group" style="grid-column:span 2;">
+          <label>Role</label>
+          <select name="role" class="form-control">
+            <option value="analyst" {% if form.role.value == 'analyst' %}selected{% endif %}>Fraud Analyst</option>
+            <option value="viewer"  {% if form.role.value == 'viewer'  %}selected{% endif %}>Viewer (read-only)</option>
+          </select>
+          <div style="font-size:10px;color:#4a6080;margin-top:4px;">
+            Admins are created by existing admins only.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password1" class="form-control" placeholder="Password">
+          {% for e in form.password1.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" name="password2" class="form-control" placeholder="Confirm password">
+          {% for e in form.password2.errors %}<div style="font-size:11px;color:#ff3c3c;margin-top:3px;">{{ e }}</div>{% endfor %}
+        </div>
+
+      </div>
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-error" style="margin-bottom:12px;">
+        {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+        Create Account
+      </button>
+    </form>
+
+    <div style="text-align:center;margin-top:20px;font-size:12px;color:#4a6080;">
+      Already have an account? <a href="{% url 'accounts:login' %}" style="color:#0099ff;">Sign in</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

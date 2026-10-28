@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Dashboard</h1>
+  <p>Real-time fraud detection overview</p>
+</div>
+
+<!-- Stat cards -->
+<div class="card-grid-4" style="margin-bottom:24px;">
+  <div class="card">
+    <div class="stat-label">Total Transactions</div>
+    <div class="stat-value" style="color:#0099ff;">{{ total_transactions|floatformat:"0" }}</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Fraud Detected</div>
+    <div class="stat-value" style="color:#ff3c3c;">{{ fraud_count|floatformat:"0" }}</div>
+    <div class="stat-sub">{{ fraud_rate }}% of total</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Legitimate</div>
+    <div class="stat-value" style="color:#00d68f;">{{ total_transactions|add:"-"|add:fraud_count }}</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Avg Fraud Score</div>
+    <div class="stat-value" style="color:#ffaa00;">{{ avg_fraud_score }}%</div>
+  </div>
+</div>
+
+<div class="card-grid-2" style="margin-bottom:24px;">
+  <!-- Fraud rate donut (rendered by JS) -->
+  <div class="card">
+    <div class="section-title">Fraud vs Legitimate</div>
+    <div class="donut-wrap">
+      <canvas id="donutChart" width="100" height="100"></canvas>
+      <div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff3c3c;"></div>Fraud — {{ fraud_count }}</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00d68f;"></div>Legitimate — {{ total_transactions|add:"-"|add:fraud_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- By transaction type -->
+  <div class="card">
+    <div class="section-title">By Transaction Type</div>
+    {% for row in by_type %}
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#8899aa;margin-bottom:3px;">
+        <span>{{ row.transaction_type }}</span>
+        <span>{{ row.fraud }} fraud / {{ row.total }}</span>
+      </div>
+      <div style="height:5px;background:#1a2535;border-radius:3px;">
+        <div style="height:100%;border-radius:3px;width:{% if by_type.0.total %}{% widthratio row.total by_type.0.total 100 %}%{% else %}0%{% endif %};background:linear-gradient(90deg,#0099ff,{% if row.fraud > 0 %}#ff3c3c{% else %}#00d68f{% endif %});"></div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">No transaction data yet.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Recent fraud alerts -->
+<div class="card">
+  <div class="section-title">Recent Fraud Alerts</div>
+  {% if recent_alerts %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Transaction</th><th>Amount</th><th>Type</th><th>Severity</th><th>Reason</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for alert in recent_alerts %}
+        <tr>
+          <td class="mono">{{ alert.transaction.transaction_id }}</td>
+          <td class="mono">UGX {{ alert.transaction.amount|floatformat:"0" }}</td>
+          <td>{{ alert.transaction.transaction_type }}</td>
+          <td><span class="badge badge-{{ alert.severity }}">{{ alert.severity|upper }}</span></td>
+          <td style="max-width:300px;font-size:11px;color:#8899aa;">{{ alert.reason|truncatechars:80 }}</td>
+          <td>{% if alert.reviewed %}<span style="color:#00d68f;font-size:11px;">✔ Reviewed</span>{% else %}<span style="color:#ffaa00;font-size:11px;">⏳ Pending</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:14px;">
+    <a href="{% url 'dashboard:fraud_alerts' %}" class="btn btn-ghost btn-sm">View all alerts →</a>
+  </div>
+  {% else %}
+  <div class="empty-state">No fraud alerts yet. <a href="{% url 'detection:upload' %}" style="color:#0099ff;">Upload a CSV</a> to run detection.</div>
+  {% endif %}
+</div>
+
+<script>
+// Simple SVG donut for dashboard
+(function(){
+  const canvas = document.getElementById('donutChart');
+  if(!canvas) return;
+  const fraudPct = {{ fraud_rate }};
+  const r = 32, cx = 50, cy = 50, c = 2*Math.PI*r;
+  const svg = `<svg width="100" height="100" viewBox="0 0 100 100">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1e2a38" stroke-width="12"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ff3c3c" stroke-width="12"
+      stroke-dasharray="${(fraudPct/100)*c} ${c}" stroke-linecap="round"
+      transform="rotate(-90 ${cx} ${cy})"/>
+    <text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#ff3c3c" font-size="13" font-weight="bold" font-family="monospace">${fraudPct}%</text>
+  </svg>`;
+  canvas.outerHTML = svg;
+})();
+</script>
+{% endblock %}

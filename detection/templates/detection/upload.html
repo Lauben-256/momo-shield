@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load detection_extras %}
+{% block title %}Upload Data — MoMo Shield{% endblock %}
+{% block page_title %}Upload Transaction Data{% endblock %}
+{% block content %}
+
+<div style="max-width:760px">
+  <h1 style="font-size:20px;font-weight:700;margin-bottom:6px">Upload Transaction Data</h1>
+  <p style="font-size:12px;color:var(--text-muted);margin-bottom:24px">
+    Upload a CSV file to run fraud detection using the trained production model.
+  </p>
+
+  {% if not model_ready %}
+  <div class="alert alert-error" style="margin-bottom:20px">
+    ⚠ No trained model found.
+    Run <code style="font-size:11px">python manage.py train_model</code> to train all three candidate models.
+  </div>
+
+  {% else %}
+
+  {# ── Model status banner ── #}
+  {% with m=metrics %}
+  <div style="background:var(--bg-card);border:1px solid rgba(0,214,143,.2);border-radius:12px;padding:16px 20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:16px">✓</span>
+      <span style="font-size:13px;font-weight:600;color:#00d68f">Production Model Ready</span>
+      <span style="font-size:11px;font-family:monospace;padding:2px 10px;border-radius:4px;background:rgba(0,214,143,.1);border:1px solid rgba(0,214,143,.25);color:#00d68f;margin-left:4px">
+        {{ m.model_name|default:"XGBoost" }}
+      </span>
+    </div>
+
+    {# ── Three-model comparison table ── #}
+    {% if m.all_models_summary %}
+    <div style="margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">
+        Model Comparison (held-out test set)
+      </div>
+      <table style="width:100%;font-size:11px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">Model</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">AUC</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">F1</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">Precision</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">Recall</th>
+            <th style="text-align:center;padding:5px 8px;color:var(--text-muted);font-weight:600;font-size:10px;border-bottom:1px solid var(--border)">MCC</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for model_name, ms in m.all_models_summary.items %}
+          <tr style="{% if model_name == m.model_name %}background:rgba(0,214,143,.06);{% endif %}">
+            <td style="padding:6px 8px;font-family:monospace;font-weight:{% if model_name == m.model_name %}700{% else %}400{% endif %};color:{% if model_name == m.model_name %}#00d68f{% else %}var(--text-primary){% endif %}">
+              {% if model_name == m.model_name %}★ {% endif %}{{ model_name }}
+            </td>
+            <td style="text-align:center;padding:6px 8px;font-family:monospace">{{ ms.test_auc }}</td>
+            <td style="text-align:center;padding:6px 8px;font-family:monospace;font-weight:{% if model_name == m.model_name %}700{% else %}400{% endif %}">{{ ms.test_f1 }}</td>
+            <td style="text-align:center;padding:6px 8px;font-family:monospace">{{ ms.test_precision }}</td>
+            <td style="text-align:center;padding:6px 8px;font-family:monospace">{{ ms.test_recall }}</td>
+            <td style="text-align:center;padding:6px 8px;font-family:monospace">{{ ms.test_mcc }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px">
+        ★ Selected as production model by highest CV F1-Score ({{ m.cv_folds|default:"5" }}-fold stratified cross-validation).
+        All models trained on {{ m.training_rows|default:"—" }} transactions ({{ m.fraud_rate_pct|default:"—" }}% fraud rate) with SMOTE oversampling.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endwith %}
+  {% endif %}
+
+  {% if error %}
+  <div class="alert alert-error" style="margin-bottom:20px">⚠ {{ error }}</div>
+  {% endif %}
+
+  {# ── Upload form ── #}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div style="border:2px dashed #1a2535;border-radius:16px;padding:44px 40px;text-align:center;background:var(--bg-card);margin-bottom:20px">
+      <div style="font-size:36px;margin-bottom:10px">📂</div>
+      <div style="font-size:14px;font-weight:600;color:#cdd9e5;margin-bottom:6px">Select your CSV transaction file</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Supports: .csv &nbsp;·&nbsp; Max size: 100 MB</div>
+      <input type="file" name="csv_file" accept=".csv" style="width:auto;cursor:pointer">
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Required CSV Columns</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        {% for col in "amount_ugx,txn_type,hour,channel,sender_account_age_days,receiver_account_age_days"|split:"," %}
+        <span style="font-size:11px;font-family:monospace;padding:3px 10px;background:rgba(0,153,255,.1);border:1px solid rgba(0,153,255,.2);border-radius:4px;color:#0099ff">{{ col }}</span>
+        {% endfor %}
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
+        Optional but recommended: txn_id, sender, receiver, is_weekend, sender_txn_count_1h, sender_txn_count_24h, receiver_previously_flagged, round_amount
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary"
+            style="width:100%;padding:13px;font-size:14px"
+            {% if not model_ready %}disabled{% endif %}>
+      ▶ &nbsp;Run Fraud Detection
+    </button>
+  </form>
+</div>
+{% endblock %}

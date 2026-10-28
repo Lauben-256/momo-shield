@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Fraud Alerts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Fraud Alerts</h1>
+  <p>Flagged transactions requiring review</p>
+</div>
+
+<div class="filter-strip">
+  <a href="?severity=all"    class="filter-btn {% if severity == 'all'    %}active{% endif %}">All</a>
+  <a href="?severity=high"   class="filter-btn {% if severity == 'high'   %}active{% endif %}">🔴 High</a>
+  <a href="?severity=medium" class="filter-btn {% if severity == 'medium' %}active{% endif %}">🟡 Medium</a>
+  <a href="?severity=low"    class="filter-btn {% if severity == 'low'    %}active{% endif %}">🟢 Low</a>
+  <span style="color:#4a6080;font-size:12px;margin-left:8px;">{{ alerts|length }} alerts</span>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px;">
+  {% for alert in alerts %}
+  <div class="card" style="border-left:3px solid {% if alert.severity == 'high' %}#ff3c3c{% elif alert.severity == 'medium' %}#ffaa00{% else %}#00d68f{% endif %};">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span class="badge badge-{{ alert.severity }}">{{ alert.severity|upper }}</span>
+          <span class="mono" style="font-size:12px;color:#8899aa;">{{ alert.transaction.transaction_id }}</span>
+          <span style="font-size:11px;color:#4a6080;">{{ alert.transaction.transaction_type }}</span>
+        </div>
+        <div style="font-size:13px;color:#cdd9e5;margin-bottom:6px;">{{ alert.reason }}</div>
+        <div style="font-size:11px;color:#4a6080;">
+          Sender: <span class="mono">{{ alert.transaction.sender }}</span> →
+          Receiver: <span class="mono">{{ alert.transaction.receiver }}</span> ·
+          <strong style="color:#ff3c3c;">UGX {{ alert.transaction.amount|floatformat:"0" }}</strong> ·
+          Score: <span style="color:{% if alert.transaction.fraud_probability >= 0.75 %}#ff3c3c{% elif alert.transaction.fraud_probability >= 0.4 %}#ffaa00{% else %}#00d68f{% endif %};">
+            {% if alert.transaction.fraud_probability %}{{ alert.transaction.fraud_probability|floatformat:"1" }}%{% endif %}
+          </span>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:20px;">
+        {% if alert.reviewed %}
+        <span style="color:#00d68f;font-size:11px;">✔ Reviewed</span>
+        {% else %}
+        <span style="color:#ffaa00;font-size:11px;">⏳ Pending Review</span>
+        {% endif %}
+        <div style="font-size:10px;color:#4a6080;margin-top:4px;">{{ alert.created_at|date:"d M Y H:i" }}</div>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card">
+    <div class="empty-state">
+      No fraud alerts found. <a href="{% url 'detection:upload' %}" style="color:#0099ff;">Upload a CSV</a> to run detection.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Transactions</h1>
+  <p>All processed transactions with fraud scores</p>
+</div>
+
+<div class="filter-strip">
+  <a href="?fraud=all" class="filter-btn {% if fraud_filter == 'all' %}active{% endif %}">All</a>
+  <a href="?fraud=fraud" class="filter-btn {% if fraud_filter == 'fraud' %}active{% endif %}">🚨 Fraud Only</a>
+  <a href="?fraud=clean" class="filter-btn {% if fraud_filter == 'clean' %}active{% endif %}">✅ Legitimate</a>
+  <span style="color:#4a6080;font-size:12px;margin-left:8px;">{{ transactions|length }} records shown</span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Transaction ID</th>
+        <th>Sender</th>
+        <th>Receiver</th>
+        <th>Amount (UGX)</th>
+        <th>Type</th>
+        <th>Fraud Score</th>
+        <th>Risk</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr {% if t.is_fraud %}class="fraud-row"{% endif %}>
+        <td class="mono">{{ t.transaction_id }}</td>
+        <td class="mono" style="font-size:11px;">{{ t.sender }}</td>
+        <td class="mono" style="font-size:11px;">{{ t.receiver }}</td>
+        <td class="mono">{{ t.amount|floatformat:"0" }}</td>
+        <td>{{ t.transaction_type }}</td>
+        <td>
+          {% if t.fraud_probability is not None %}
+          <div class="score-bar-wrap">
+            <div class="score-bar-bg">
+              <div class="score-bar-fill" style="width:{% widthratio t.fraud_probability 1 100 %}%;background:{% if t.fraud_probability >= 0.75 %}#ff3c3c{% elif t.fraud_probability >= 0.4 %}#ffaa00{% else %}#00d68f{% endif %};"></div>
+            </div>
+            <span class="score-label" style="color:{% if t.fraud_probability >= 0.75 %}#ff3c3c{% elif t.fraud_probability >= 0.4 %}#ffaa00{% else %}#00d68f{% endif %};">
+              {{ t.fraud_probability|floatformat:"1" }}%
+            </span>
+          </div>
+          {% else %}—{% endif %}
+        </td>
+        <td><span class="badge badge-{{ t.risk_level }}">{{ t.risk_level|upper }}</span></td>
+        <td>
+          {% if t.is_fraud %}
+          <span class="badge badge-fraud">FRAUD</span>
+          {% else %}
+          <span class="badge badge-clean">CLEAN</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="empty-state">No transactions found. <a href="{% url 'detection:upload' %}" style="color:#0099ff;">Upload a CSV</a> to get started.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

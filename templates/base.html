@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MoMo Shield{% endblock %} — Fraud Detection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mark">M</div>
+        <div class="logo-text">
+          <span class="logo-name">MoMo Shield</span>
+          <span class="logo-sub">Fraud Detection</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="{% url 'dashboard:home' %}" class="nav-item {% if request.resolver_match.app_name == 'dashboard' and request.resolver_match.url_name == 'home' %}active{% endif %}">
+          <span class="nav-icon">⬡</span><span class="nav-label">Dashboard</span>
+        </a>
+        <a href="{% url 'dashboard:transactions' %}" class="nav-item {% if request.resolver_match.url_name == 'transactions' %}active{% endif %}">
+          <span class="nav-icon">⇄</span><span class="nav-label">Transactions</span>
+        </a>
+        <a href="{% url 'dashboard:fraud_alerts' %}" class="nav-item {% if request.resolver_match.url_name == 'fraud_alerts' %}active{% endif %}">
+          <span class="nav-icon">◈</span><span class="nav-label">Fraud Alerts</span>
+        </a>
+        {% if request.user.role != 'viewer' %}
+        <a href="{% url 'detection:upload' %}" class="nav-item {% if request.resolver_match.app_name == 'detection' %}active{% endif %}">
+          <span class="nav-icon">↑</span><span class="nav-label">Upload Data</span>
+        </a>
+        {% endif %}
+        <a href="{% url 'simulation:monitor' %}" class="nav-item {% if request.resolver_match.app_name == 'simulation' %}active{% endif %}">
+          <span class="nav-icon">⚡</span><span class="nav-label">Live Monitor</span>
+        </a>
+        <a href="{% url 'reports:list' %}" class="nav-item {% if request.resolver_match.app_name == 'reports' %}active{% endif %}">
+          <span class="nav-icon">▦</span><span class="nav-label">Reports</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="user-avatar">{{ request.user.username|slice:":2"|upper }}</div>
+        <div class="user-info">
+          <span class="user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+          <span class="user-role">{{ request.user.role|title }}</span>
+        </div>
+        <a href="{% url 'accounts:profile' %}" class="logout-btn" title="Profile" style="margin-right:6px;">⚙</a>
+      <a href="{% url 'accounts:logout' %}" class="logout-btn" title="Logout">⏻</a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      {% if messages %}
+        <div class="messages">
+          {% for msg in messages %}
+            <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+  <script src="{% static 'js/charts.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

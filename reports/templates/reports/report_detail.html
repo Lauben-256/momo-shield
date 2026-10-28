@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Reports</h1>
+  <p>Download fraud analysis reports for completed detection jobs</p>
+</div>
+
+<div class="card-grid-2">
+  {% for job in jobs %}
+  <div class="card report-card">
+    <div class="report-info">
+      <div class="report-title">{{ job.original_filename }}</div>
+      <div class="report-meta">
+        Job #{{ job.pk }} ·
+        {{ job.total_records }} records ·
+        {{ job.fraud_count }} fraud ({{ job.fraud_rate|floatformat:"1" }}%) ·
+        {{ job.created_at|date:"d M Y" }}
+      </div>
+    </div>
+    <div class="export-btns">
+      <a href="{% url 'reports:export' job.pk %}?format=pdf" class="btn btn-sm" style="background:rgba(255,60,60,.12);border:1px solid rgba(255,60,60,.3);color:#ff3c3c;">↓ PDF</a>
+      <a href="{% url 'reports:export' job.pk %}?format=excel" class="btn btn-sm" style="background:rgba(0,214,143,.1);border:1px solid rgba(0,214,143,.25);color:#00d68f;">↓ Excel</a>
+    </div>
+  </div>
+  {% empty %}
+  <div class="card" style="grid-column:span 2;">
+    <div class="empty-state">
+      No completed detection jobs yet.<br>
+      <a href="{% url 'detection:upload' %}" style="color:#0099ff;">Upload a CSV file</a> to run fraud detection and generate a report.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

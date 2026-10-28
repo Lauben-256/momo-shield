@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Live Monitor — MoMo Shield{% endblock %}
+
+{% block extra_css %}
+<style>
+.sim-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.pulse{width:10px;height:10px;border-radius:50%;background:#00d68f;animation:pulse 1.2s infinite}
+.pulse.stopped{background:#666;animation:none}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
+.stat-box .val{font-size:26px;font-weight:700;font-family:monospace}
+.stat-box .lbl{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+.feed-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.feed-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.feed-body{height:420px;overflow-y:auto;font-size:12px}
+.txn-row{display:grid;grid-template-columns:160px 110px 110px 100px 90px 80px 60px 1fr;gap:8px;padding:7px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;animation:fadein .3s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.txn-row.fraud{background:rgba(255,60,60,.06)}
+.txn-row.hold{background:rgba(255,170,0,.08)}
+.txn-row.blocked{background:rgba(120,80,180,.12)}
+.badge-status{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace}
+.badge-CLEAN{background:rgba(0,214,143,.15);color:#00d68f}
+.badge-FRAUD{background:rgba(255,60,60,.2);color:#ff5555}
+.badge-HOLD{background:rgba(255,170,0,.2);color:#ffaa00}
+.badge-BLOCKED{background:rgba(120,80,180,.2);color:#a080f0}
+.prob-bar{height:6px;border-radius:3px;background:#1a2535;overflow:hidden;min-width:60px}
+.prob-fill{height:100%;border-radius:3px;transition:width .3s}
+.controls{display:flex;gap:10px;margin-bottom:20px;align-items:center}
+.tps-label{font-size:12px;color:var(--text-muted)}
+.tps-range{accent-color:#00d68f}
+.holds-panel{background:var(--bg-card);border:1px solid rgba(255,170,0,.3);border-radius:10px;overflow:hidden;margin-top:16px}
+.holds-header{padding:10px 16px;border-bottom:1px solid rgba(255,170,0,.2);font-size:12px;font-weight:600;color:#ffaa00;display:flex;justify-content:space-between}
+.hold-item{padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+.hold-item:last-child{border-bottom:none}
+.hold-actions{display:flex;gap:8px;margin-top:8px}
+.btn-sm{padding:4px 12px;font-size:11px;border-radius:5px;cursor:pointer;border:none;font-weight:600}
+.btn-confirm{background:rgba(255,60,60,.2);color:#ff5555;border:1px solid rgba(255,60,60,.3)}
+.btn-confirm:hover{background:rgba(255,60,60,.35)}
+.btn-clear{background:rgba(0,214,143,.15);color:#00d68f;border:1px solid rgba(0,214,143,.3)}
+.btn-clear:hover{background:rgba(0,214,143,.25)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sim-header">
+  <div class="pulse" id="pulse"></div>
+  <h1 style="font-size:18px;font-weight:700;margin:0">Live Transaction Monitor</h1>
+  <span id="session-badge" style="font-size:11px;padding:2px 10px;border-radius:4px;background:rgba(0,214,143,.1);border:1px solid rgba(0,214,143,.25);color:#00d68f;display:none">LIVE</span>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button id="btn-start" class="btn btn-primary" style="padding:8px 20px;font-size:13px">▶ Start Simulation</button>
+  <button id="btn-stop"  class="btn btn-ghost"   style="padding:8px 20px;font-size:13px;display:none">⏹ Stop</button>
+  <span class="tps-label" style="margin-left:12px">Speed:</span>
+  <input type="range" id="tps-range" class="tps-range" min="0.5" max="10" step="0.5" value="2" style="width:120px">
+  <span id="tps-val" class="tps-label">2 TPS</span>
+  <span style="flex:1"></span>
+  <a href="{% url 'simulation:review_queue' %}" class="btn btn-ghost" style="padding:8px 16px;font-size:12px;position:relative">
+    ◈ Review Queue
+    <span id="hold-badge" style="position:absolute;top:-4px;right:-4px;background:#ffaa00;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;display:none">0</span>
+  </a>
+  <a href="{% url 'simulation:accounts' %}"    class="btn btn-ghost" style="padding:8px 16px;font-size:12px;position:relative">
+    ⊘ Frozen Accounts
+    <span id="freeze-badge" style="position:absolute;top:-4px;right:-4px;background:#a080f0;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;display:none">0</span>
+  </a>
+</div>
+
+<!-- Stats -->
+<div class="stat-grid">
+  <div class="stat-box"><div class="val" id="s-total" style="color:#0099ff">0</div><div class="lbl">Total Processed</div></div>
+  <div class="stat-box"><div class="val" id="s-fraud" style="color:#ff4444">0</div><div class="lbl">Fraud Detected</div></div>
+  <div class="stat-box"><div class="val" id="s-rate"  style="color:#ffaa00">0.0%</div><div class="lbl">Fraud Rate</div></div>
+  <div class="stat-box"><div class="val" id="s-holds" style="color:#a080f0">0</div><div class="lbl">Awaiting Review</div></div>
+</div>
+
+<!-- Live feed -->
+<div class="feed-wrap">
+  <div class="feed-header">
+    <span style="font-size:12px;font-weight:600;color:#cdd9e5">Live Transaction Feed</span>
+    <label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" id="pause-scroll" style="accent-color:#00d68f"> Pause scroll
+    </label>
+  </div>
+  <div style="display:grid;grid-template-columns:160px 110px 110px 100px 90px 80px 60px 1fr;gap:8px;padding:6px 14px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">
+    <span>TXN ID</span><span>Sender</span><span>Receiver</span><span>Amount (UGX)</span><span>Type</span><span>Channel</span><span>Risk</span><span>Status / Probability</span>
+  </div>
+  <div class="feed-body" id="feed"></div>
+</div>
+
+<!-- Live hold queue (inline) -->
+<div class="holds-panel" id="holds-panel" style="display:none">
+  <div class="holds-header">
+    <span>⚠ Transactions On Hold — Awaiting Decision</span>
+    <a href="{% url 'simulation:review_queue' %}" style="font-size:11px;color:#ffaa00">View all →</a>
+  </div>
+  <div id="holds-list"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const WS_URL = (location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/simulation/';
+let ws, running=false, total=0, fraud=0, holds=0, frozen=0;
+const feed      = document.getElementById('feed');
+const pauseScroll = document.getElementById('pause-scroll');
+
+function connect(){
+  ws = new WebSocket(WS_URL);
+  ws.onopen = ()=>{ console.log('WS connected'); };
+  ws.onmessage = e=>{ handleMessage(JSON.parse(e.data)); };
+  ws.onclose = e=>{ if(running) setTimeout(connect,2000); };
+}
+
+function handleMessage(msg){
+  if(msg.type==='transaction')    renderTransaction(msg);
+  else if(msg.type==='review_update') handleReviewUpdate(msg);
+  else if(msg.type==='account_update') handleAccountUpdate(msg);
+}
+
+function renderTransaction(t){
+  total = t.session_total || total+1;
+  if(t.status==='FRAUD'||t.status==='HOLD') fraud = t.session_fraud || fraud+1;
+
+  document.getElementById('s-total').textContent = total.toLocaleString();
+  document.getElementById('s-fraud').textContent = fraud.toLocaleString();
+  document.getElementById('s-rate').textContent  = total>0?(fraud/total*100).toFixed(1)+'%':'0.0%';
+
+  const pct   = Math.round((t.fraud_prob||0)*100);
+  const color = pct>=75?'#ff4444':pct>=40?'#ffaa00':'#00d68f';
+  const cls   = t.status==='HOLD'?'hold':t.status==='BLOCKED'?'blocked':t.is_fraud?'fraud':'';
+
+  const row = document.createElement('div');
+  row.className = 'txn-row '+cls;
+  row.innerHTML = `
+    <span class="mono" style="font-size:10px;color:#8899aa">${t.txn_id}</span>
+    <span class="mono" style="font-size:10px">${t.sender}</span>
+    <span class="mono" style="font-size:10px">${t.receiver}</span>
+    <span class="mono" style="font-size:11px">${Number(t.amount).toLocaleString()}</span>
+    <span style="font-size:10px">${t.txn_type||''}</span>
+    <span style="font-size:10px">${t.channel||''}</span>
+    <span class="badge-status badge-${t.status}">${t.status}</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="prob-bar" style="flex:1"><div class="prob-fill" style="width:${pct}%;background:${color}"></div></div>
+      <span style="font-size:10px;font-family:monospace;color:${color}">${pct}%</span>
+      ${t.held?`<button class="btn-sm btn-confirm" onclick="decide('${t.txn_id}','confirmed')">Block</button>
+                <button class="btn-sm btn-clear"   onclick="decide('${t.txn_id}','cleared')">Allow</button>`:''}
+    </div>`;
+
+  if(!pauseScroll.checked){
+    feed.insertBefore(row, feed.firstChild);
+    if(feed.children.length > 200) feed.removeChild(feed.lastChild);
+  }
+
+  // Add to inline hold queue
+  if(t.held){ addHold(t); }
+}
+
+function addHold(t){
+  holds++;
+  document.getElementById('s-holds').textContent = holds;
+  const badge = document.getElementById('hold-badge');
+  badge.style.display='block'; badge.textContent=holds;
+  const panel = document.getElementById('holds-panel');
+  panel.style.display='block';
+  const list  = document.getElementById('holds-list');
+  const item  = document.createElement('div');
+  item.className='hold-item'; item.id='hold-'+t.txn_id.replace(/[^a-z0-9]/gi,'_');
+  item.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="mono" style="font-size:11px;color:#ffaa00">${t.txn_id}</span>
+      <span style="font-size:10px;color:var(--text-muted)">${new Date(t.timestamp).toLocaleTimeString()}</span>
+    </div>
+    <div style="font-size:11px;margin:4px 0">
+      <b>${t.sender}</b> → <b>${t.receiver}</b> &nbsp;·&nbsp; UGX ${Number(t.amount).toLocaleString()} &nbsp;·&nbsp; ${t.txn_type}
+    </div>
+    <div style="font-size:10px;color:#ff9966;margin-bottom:6px">${t.reason||''}</div>
+    <div class="hold-actions">
+      <button class="btn-sm btn-confirm" onclick="decide('${t.txn_id}','confirmed')">✗ Confirm Fraud &amp; Block</button>
+      <button class="btn-sm btn-clear"   onclick="decide('${t.txn_id}','cleared')">✓ Allow Transaction</button>
+    </div>`;
+  list.insertBefore(item, list.firstChild);
+  if(list.children.length>10) list.removeChild(list.lastChild);
+}
+
+function decide(txnId, decision){
+  if(!ws||ws.readyState!==1){ alert('WebSocket not connected'); return; }
+  ws.send(JSON.stringify({action:'review_decision', txn_id:txnId, decision:decision}));
+}
+
+function handleReviewUpdate(msg){
+  if(msg.event==='new_hold') return;
+  const id = 'hold-'+msg.txn_id.replace(/[^a-z0-9]/gi,'_');
+  const el = document.getElementById(id);
+  if(el){
+    el.style.opacity='0.4';
+    el.innerHTML += `<div style="font-size:10px;margin-top:4px;color:${msg.decision==='confirmed'?'#ff5555':'#00d68f'}">
+      Decision: <b>${msg.decision.toUpperCase()}</b></div>`;
+    setTimeout(()=>el.remove(), 3000);
+  }
+}
+
+function handleAccountUpdate(msg){
+  if(msg.status==='frozen'){
+    frozen++;
+    const badge=document.getElementById('freeze-badge');
+    badge.style.display='block'; badge.textContent=frozen;
+    // Toast notification
+    showToast(`⊘ Account frozen: ${msg.account} (${msg.hit_count} fraud hits)`,'#a080f0');
+  } else if(msg.status==='cleared'){
+    frozen=Math.max(0,frozen-1);
+    showToast(`✓ Account cleared: ${msg.account}`,'#00d68f');
+  }
+}
+
+function showToast(msg, color){
+  const t=document.createElement('div');
+  t.style.cssText=`position:fixed;bottom:24px;right:24px;background:#1a2535;border:1px solid ${color};
+    color:${color};padding:10px 18px;border-radius:8px;font-size:12px;z-index:9999;
+    animation:fadein .3s ease;max-width:340px`;
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 4000);
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────
+const tpsRange = document.getElementById('tps-range');
+const tpsVal   = document.getElementById('tps-val');
+tpsRange.addEventListener('input', ()=>{ tpsVal.textContent=tpsRange.value+' TPS'; });
+
+document.getElementById('btn-start').addEventListener('click', ()=>{
+  fetch("{% url 'simulation:start' %}", {
+    method:'POST',
+    headers:{'X-CSRFToken':'{{ csrf_token }}','Content-Type':'application/x-www-form-urlencoded'},
+    body:'tps='+tpsRange.value
+  }).then(r=>r.json()).then(d=>{
+    if(d.session_id){
+      running=true; total=0; fraud=0; holds=0; frozen=0;
+      document.getElementById('btn-start').style.display='none';
+      document.getElementById('btn-stop').style.display='';
+      document.getElementById('session-badge').style.display='';
+      document.getElementById('pulse').classList.remove('stopped');
+      showToast('Simulation started — run: python manage.py simulate --session '+d.session_id,'#00d68f');
+    }
+  });
+});
+
+document.getElementById('btn-stop').addEventListener('click', ()=>{
+  fetch("{% url 'simulation:stop' %}", {
+    method:'POST', headers:{'X-CSRFToken':'{{ csrf_token }}'}
+  }).then(()=>{
+    running=false;
+    document.getElementById('btn-start').style.display='';
+    document.getElementById('btn-stop').style.display='none';
+    document.getElementById('session-badge').style.display='none';
+    document.getElementById('pulse').classList.add('stopped');
+  });
+});
+
+connect();
+{% if session %} running=true;
+document.getElementById('btn-start').style.display='none';
+document.getElementById('btn-stop').style.display='';
+document.getElementById('session-badge').style.display='';
+{% endif %}
+</script>
+{% endblock %}

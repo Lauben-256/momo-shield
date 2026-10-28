@@ -1,0 +1,80 @@
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ── Virtual environments ────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Secrets and local config (NEVER commit these) ───
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+local_settings.py
+
+# ── Django ──────────────────────────────────────────
+*.log
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/uploads/*
+!media/uploads/test_sample.csv
+media/reports/
+media/*.csv
+!media/.gitkeep
+
+# ── Migrations: KEEP them (do not ignore) ───────────
+
+# ── Frontend (if you run npm in /frontend) ──────────
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+npm-debug.log*
+
+# ── macOS ───────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── IDEs / editors ──────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Testing / coverage ──────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Jupyter ─────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Archives ────────────────────────────────────────
+*.zip
+
+# ── NOTE ────────────────────────────────────────────
+# detection/ml/model.pkl, scaler.pkl, feature_names.pkl and the
+# *.json metrics files are intentionally NOT ignored: the app needs
+# them to run inference without retraining.
+# detection/ml/momo_shield_training_data.csv (450,000 rows) may be
+# large. GitHub warns above 50 MB and rejects files above 100 MB.
+# If yours is too big, uncomment the next line and share the data
+# separately.
+# detection/ml/momo_shield_training_data.csv

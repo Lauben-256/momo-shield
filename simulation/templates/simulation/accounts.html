@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Account Status — MoMo Shield{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div>
+    <h1 style="font-size:18px;font-weight:700;margin:0">Account Status Management</h1>
+    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">
+      Frozen accounts are blocked from all transactions. Flagged accounts are monitored.
+    </p>
+  </div>
+  <a href="{% url 'simulation:monitor' %}" class="btn btn-ghost" style="font-size:12px">← Live Monitor</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+  <!-- Frozen accounts -->
+  <div class="card" style="padding:0;overflow:hidden;border-color:rgba(160,128,240,.3)">
+    <div style="padding:12px 18px;border-bottom:1px solid rgba(160,128,240,.2);background:rgba(160,128,240,.06)">
+      <span style="font-size:12px;font-weight:700;color:#a080f0">⊘ Frozen Accounts ({{ frozen.count }})</span>
+    </div>
+    {% if frozen %}
+    <table>
+      <thead><tr><th>Account</th><th>Hits</th><th>Frozen At</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for acc in frozen %}
+        <tr>
+          <td class="mono" style="font-size:11px">{{ acc.account_number }}</td>
+          <td style="font-family:monospace;color:#ff5555;font-weight:700">{{ acc.fraud_hit_count }}</td>
+          <td style="font-size:10px;color:var(--text-muted)">{{ acc.frozen_at|date:"d/m H:i"|default:"—" }}</td>
+          <td>
+            <button onclick="unfreeze('{{ acc.account_number }}',this)"
+              style="padding:3px 10px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;
+                     background:rgba(0,214,143,.12);color:#00d68f;border:1px solid rgba(0,214,143,.3)">
+              Unfreeze
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:12px">No frozen accounts.</div>
+    {% endif %}
+  </div>
+
+  <!-- Flagged accounts -->
+  <div class="card" style="padding:0;overflow:hidden;border-color:rgba(255,170,0,.3)">
+    <div style="padding:12px 18px;border-bottom:1px solid rgba(255,170,0,.2);background:rgba(255,170,0,.06)">
+      <span style="font-size:12px;font-weight:700;color:#ffaa00">⚑ Flagged Accounts ({{ flagged.count }})</span>
+    </div>
+    {% if flagged %}
+    <table>
+      <thead><tr><th>Account</th><th>Fraud Hits</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for acc in flagged %}
+        <tr>
+          <td class="mono" style="font-size:11px">{{ acc.account_number }}</td>
+          <td style="font-family:monospace;color:#ffaa00;font-weight:700">{{ acc.fraud_hit_count }}</td>
+          <td>
+            <button onclick="freeze('{{ acc.account_number }}',this)"
+              style="padding:3px 10px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;
+                     background:rgba(160,128,240,.15);color:#a080f0;border:1px solid rgba(160,128,240,.3)">
+              Freeze Now
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:12px">No flagged accounts.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Manual freeze form -->
+<div class="card" style="margin-top:20px">
+  <div class="card-title">Manual Account Freeze</div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <input type="text" id="manual-account" placeholder="Enter account number e.g. 0770123456"
+      style="flex:1;padding:8px 12px;background:#111927;border:1px solid var(--border);border-radius:6px;color:#cdd9e5;font-size:13px">
+    <button onclick="freeze(document.getElementById('manual-account').value, this)"
+      class="btn btn-primary" style="padding:8px 18px;font-size:13px;white-space:nowrap">
+      ⊘ Freeze Account
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const WS_URL=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/simulation/';
+let ws;
+function connect(){ ws=new WebSocket(WS_URL); ws.onmessage=e=>{ const m=JSON.parse(e.data); if(m.type==='account_update') location.reload(); }; ws.onclose=()=>setTimeout(connect,3000); }
+connect();
+function freeze(account,btn){ if(!account.trim()){alert('Enter an account number');return;} if(btn){btn.disabled=true;btn.textContent='…';} ws.send(JSON.stringify({action:'freeze_account',account:account.trim(),note:'Manual freeze'})); setTimeout(()=>location.reload(),1000); }
+function unfreeze(account,btn){ btn.disabled=true;btn.textContent='…'; ws.send(JSON.stringify({action:'unfreeze_account',account:account})); setTimeout(()=>location.reload(),1000); }
+</script>
+{% endblock %}

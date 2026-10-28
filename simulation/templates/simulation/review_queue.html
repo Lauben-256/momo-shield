@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Review Queue — MoMo Shield{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <div>
+    <h1 style="font-size:18px;font-weight:700;margin:0">Fraud Hold Queue</h1>
+    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 0">High-probability fraud transactions awaiting analyst decision</p>
+  </div>
+  <a href="{% url 'simulation:monitor' %}" class="btn btn-ghost" style="font-size:12px">← Live Monitor</a>
+</div>
+
+{% if pending %}
+<div class="card" style="margin-bottom:24px;padding:0;overflow:hidden;border-color:rgba(255,170,0,.3)">
+  <div style="padding:12px 18px;border-bottom:1px solid rgba(255,170,0,.2);background:rgba(255,170,0,.06)">
+    <span style="font-size:12px;font-weight:700;color:#ffaa00">⚠ {{ pending.count }} Transaction{% if pending.count != 1 %}s{% endif %} On Hold</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>TXN ID</th><th>Sender</th><th>Receiver</th>
+        <th>Amount (UGX)</th><th>Type</th><th>Fraud Prob.</th>
+        <th>Reason</th><th>Held At</th><th>Action</th>
+      </tr></thead>
+      <tbody>
+        {% for rq in pending %}
+        <tr id="row-{{ rq.transaction.transaction_id|slugify }}">
+          <td class="mono" style="font-size:10px">{{ rq.transaction.transaction_id }}</td>
+          <td class="mono" style="font-size:10px">{{ rq.transaction.sender }}</td>
+          <td class="mono" style="font-size:10px">{{ rq.transaction.receiver }}</td>
+          <td class="mono">{{ rq.transaction.amount|floatformat:"0" }}</td>
+          <td style="font-size:11px">{{ rq.transaction.transaction_type }}</td>
+          <td>
+            {% if rq.transaction.fraud_probability %}
+            <span style="font-family:monospace;font-weight:700;color:{% if rq.transaction.fraud_probability >= 0.75 %}#ff4444{% else %}#ffaa00{% endif %}">
+              {% widthratio rq.transaction.fraud_probability 1 100 %}%
+            </span>
+            {% endif %}
+          </td>
+          <td style="font-size:10px;color:#8899aa;max-width:180px">
+            {% if rq.transaction.alert %}{{ rq.transaction.alert.reason|truncatechars:80 }}{% endif %}
+          </td>
+          <td style="font-size:10px;color:var(--text-muted)">{{ rq.created_at|date:"H:i:s" }}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button onclick="decide('{{ rq.transaction.transaction_id }}','confirmed',this)"
+                style="padding:4px 10px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;background:rgba(255,60,60,.15);color:#ff5555;border:1px solid rgba(255,60,60,.3)">
+                ✗ Block
+              </button>
+              <button onclick="decide('{{ rq.transaction.transaction_id }}','cleared',this)"
+                style="padding:4px 10px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;background:rgba(0,214,143,.12);color:#00d68f;border:1px solid rgba(0,214,143,.3)">
+                ✓ Allow
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+  <div style="font-size:36px;margin-bottom:12px">✓</div>
+  <div style="font-size:14px">No transactions currently on hold.</div>
+  <div style="font-size:12px;margin-top:6px">Start the simulator to see real-time fraud holds appear here.</div>
+</div>
+{% endif %}
+
+{% if decided %}
+<div class="card" style="padding:0;overflow:hidden">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <span style="font-size:12px;font-weight:600">Recent Decisions</span>
+  </div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>TXN ID</th><th>Amount</th><th>Decision</th><th>Analyst</th><th>Decided At</th><th>Note</th>
+      </tr></thead>
+      <tbody>
+        {% for rq in decided %}
+        <tr>
+          <td class="mono" style="font-size:10px">{{ rq.transaction.transaction_id }}</td>
+          <td class="mono">{{ rq.transaction.amount|floatformat:"0" }}</td>
+          <td>
+            <span style="padding:2px 10px;border-radius:4px;font-size:10px;font-weight:700;
+              background:{% if rq.decision == 'confirmed' %}rgba(255,60,60,.15){% else %}rgba(0,214,143,.12){% endif %};
+              color:{% if rq.decision == 'confirmed' %}#ff5555{% else %}#00d68f{% endif %}">
+              {{ rq.get_decision_display }}
+            </span>
+          </td>
+          <td style="font-size:11px">{{ rq.analyst.username|default:"—" }}</td>
+          <td style="font-size:10px;color:var(--text-muted)">{{ rq.decided_at|date:"H:i:s"|default:"—" }}</td>
+          <td style="font-size:10px;color:#8899aa">{{ rq.analyst_note|truncatechars:60 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const WS_URL=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/simulation/';
+let ws;
+function connect(){
+  ws=new WebSocket(WS_URL);
+  ws.onmessage=e=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==='review_update'&&msg.event==='new_hold') location.reload();
+  };
+  ws.onclose=()=>setTimeout(connect,3000);
+}
+connect();
+
+function decide(txnId, decision, btn){
+  btn.disabled=true; btn.textContent='…';
+  ws.send(JSON.stringify({action:'review_decision',txn_id:txnId,decision:decision,note:''}));
+  const row=document.getElementById('row-'+txnId.toLowerCase().replace(/[^a-z0-9]/g,'-'));
+  setTimeout(()=>{ if(row){ row.style.opacity='0.3'; setTimeout(()=>row.remove(),1500); } }, 500);
+}
+</script>
+{% endblock %}

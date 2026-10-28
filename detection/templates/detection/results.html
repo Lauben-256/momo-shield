@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Detection Results — Job #{{ job.pk }}{% endblock %}
+
+{% block content %}
+
+{# ── Processing spinner — shown while job is still running ── #}
+{% if job.status == 'pending' or job.status == 'processing' %}
+<div id="processing-banner"
+     style="background:var(--bg-card);border:1px solid rgba(0,153,255,.3);border-radius:12px;
+            padding:40px 24px;text-align:center;margin-bottom:24px;">
+  <div style="font-size:40px;margin-bottom:12px">⏳</div>
+  <div style="font-size:16px;font-weight:600;color:#0099ff;margin-bottom:8px">
+    Processing your file…
+  </div>
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">
+    Fraud detection is running in the background. This page will refresh automatically.
+  </div>
+  <div style="height:6px;background:#1a2535;border-radius:3px;overflow:hidden;max-width:300px;margin:0 auto;">
+    <div style="height:100%;width:50%;background:linear-gradient(90deg,#0099ff,#00d68f);
+                border-radius:3px;animation:slide 1.5s ease-in-out infinite alternate;">
+    </div>
+  </div>
+</div>
+<style>@keyframes slide{from{width:10%}to{width:90%}}</style>
+<script>
+(function poll(){
+  fetch("{% url 'detection:progress' job.pk %}")
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status==='done'||d.status==='failed'){window.location.reload();}
+      else{setTimeout(poll,1500);}
+    }).catch(function(){setTimeout(poll,3000);});
+})();
+</script>
+{% endif %}
+
+{# ── Error banner ── #}
+{% if job.status == 'failed' %}
+<div class="alert alert-error" style="margin-bottom:24px">
+  ⚠ Detection failed: {{ job.error_message }}
+</div>
+{% endif %}
+
+{# ── Results (only shown when done) ── #}
+{% if job.status == 'done' %}
+
+<div class="page-header">
+  <h1>Detection Results</h1>
+  <p>Job #{{ job.pk }} · {{ job.original_filename }}</p>
+</div>
+
+<!-- Summary stats -->
+<div class="card-grid-3" style="margin-bottom:24px;">
+  <div class="card" style="text-align:center;">
+    <div class="stat-label">Total Scanned</div>
+    <div class="stat-value" style="color:#0099ff;">{{ job.total_records }}</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="stat-label">Fraud Flagged</div>
+    <div class="stat-value" style="color:#ff3c3c;">{{ job.fraud_count }}</div>
+    <div class="stat-sub">{{ job.fraud_rate|floatformat:"2" }}% fraud rate</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="stat-label">Legitimate</div>
+    <div class="stat-value" style="color:#00d68f;">{{ job.legitimate_count }}</div>
+  </div>
+</div>
+
+<!-- Risk breakdown from processing_log -->
+{% if job.processing_log %}
+<div class="card-grid-3" style="margin-bottom:24px;">
+  <div class="card">
+    <div class="stat-label">High Risk</div>
+    <div class="stat-value" style="color:#ff3c3c;font-size:20px;">{{ job.processing_log.high_risk_count|default:"—" }}</div>
+    <div class="stat-sub">Probability ≥ 75%</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Medium Risk</div>
+    <div class="stat-value" style="color:#ffaa00;font-size:20px;">{{ job.processing_log.medium_risk_count|default:"—" }}</div>
+    <div class="stat-sub">Probability 40–74%</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Total Fraud Value</div>
+    <div class="stat-value" style="color:#ff8888;font-size:18px;">UGX {{ job.processing_log.fraud_value_ugx|floatformat:"0"|default:"—" }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Action buttons -->
+<div style="display:flex;gap:10px;margin-bottom:24px;">
+  <a href="{% url 'reports:export' job.pk %}?format=pdf"   class="btn btn-ghost btn-sm">↓ Download PDF</a>
+  <a href="{% url 'reports:export' job.pk %}?format=excel" class="btn btn-ghost btn-sm">↓ Download Excel</a>
+  <a href="{% url 'detection:upload' %}" class="btn btn-ghost btn-sm">↑ Upload Another</a>
+</div>
+
+<!-- Transactions table -->
+<div class="card" style="padding:0;overflow:hidden;">
+  <div style="padding:16px 20px;border-bottom:1px solid #1a2535;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:13px;font-weight:600;color:#e8f0fb;">Transaction Results</span>
+    <span style="font-size:11px;color:#4a6080;">Sorted by fraud probability ↓</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Sender</th><th>Receiver</th><th>Amount</th><th>Type</th>
+          <th>Fraud Prob.</th><th>Risk</th><th>Status</th><th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr {% if t.is_fraud %}class="fraud-row"{% endif %}>
+          <td class="mono">{{ t.transaction_id }}</td>
+          <td class="mono" style="font-size:11px;">{{ t.sender }}</td>
+          <td class="mono" style="font-size:11px;">{{ t.receiver }}</td>
+          <td class="mono">{{ t.amount|floatformat:"0" }}</td>
+          <td style="font-size:11px;">{{ t.transaction_type }}</td>
+          <td>
+            {% if t.fraud_probability is not None %}
+            <div class="score-bar-wrap">
+              <div class="score-bar-bg">
+                <div class="score-bar-fill" style="width:{% widthratio t.fraud_probability 1 100 %}%;background:{% if t.fraud_probability >= 0.75 %}#ff3c3c{% elif t.fraud_probability >= 0.4 %}#ffaa00{% else %}#00d68f{% endif %};"></div>
+              </div>
+              <span class="score-label" style="color:{% if t.fraud_probability >= 0.75 %}#ff3c3c{% elif t.fraud_probability >= 0.4 %}#ffaa00{% else %}#00d68f{% endif %};">
+                {% widthratio t.fraud_probability 1 100 %}%
+              </span>
+            </div>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-{{ t.risk_level }}">{{ t.risk_level|upper }}</span></td>
+          <td>
+            {% if t.is_fraud %}<span class="badge badge-fraud">FRAUD</span>
+            {% else %}<span class="badge badge-clean">CLEAN</span>{% endif %}
+          </td>
+          <td style="font-size:10px;color:#8899aa;max-width:220px;">
+            {% if t.alert %}{{ t.alert.reason|truncatechars:60 }}{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="empty-state">No transactions found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}{# end if job.status == 'done' #}
+
+{% endblock %}
